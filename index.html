@@ -369,9 +369,9 @@
     addCylinder('teddy head', [-2.85, 0.87, -0.55], 0.28, 0.28, 0.34, mats.bear, { collider: true });
 
     // Right side: TV stand, TV, air conditioner, kitchen
-    addBox('tv stand', [2.45, 0.35, -1.65], [1.45, 0.55, 0.6], mats.offWhite, { collider: true });
-    const tv = addBox('television', [2.42, 0.93, -1.72], [1.05, 0.62, 0.08], mats.tvBlack, { collider: true });
-    addBox('tv screen', [2.42, 0.94, -1.77], [0.9, 0.48, 0.04], mats.screen, { castShadow: false });
+    addBox('tv stand', [2.95, 0.35, -1.65], [0.6, 0.55, 1.45], mats.offWhite, { collider: true });
+    const tv = addBox('television', [2.62, 0.93, -1.65], [0.08, 0.62, 1.05], mats.tvBlack, { collider: true });
+    addBox('tv screen', [2.57, 0.94, -1.65], [0.04, 0.48, 0.9], mats.screen, { castShadow: false });
     const secretKey = new THREE.Group();
     const keyRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 12, 24), mats.key);
     const keyStem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.025, 0.32), mats.key);
@@ -379,7 +379,7 @@
     keyStem.position.z = 0.18;
     keyTooth.position.set(0.045, 0, 0.34);
     secretKey.add(keyRing, keyStem, keyTooth);
-    secretKey.position.set(2.42, 0.6, -1.35);
+    secretKey.position.set(2.82, 0.6, -1.65);
     secretKey.rotation.x = Math.PI / 2;
     scene.add(secretKey);
     secretKey.visible = false;
