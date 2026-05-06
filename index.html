@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Apartment Escape - Loft Room</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #111;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: white;
+      user-select: none;
+    }
+    #game { width: 100vw; height: 100vh; display: block; }
+    #hud {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 16px;
+      padding: 14px 16px;
+      max-width: 380px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 12px 32px rgba(0,0,0,.35);
+    }
+    #hud h1 { margin: 0 0 8px; font-size: 18px; letter-spacing: .04em; }
+    #hud p { margin: 4px 0; font-size: 13px; line-height: 1.45; color: #e6e6e6; }
+    #inventory { margin-top: 8px; font-weight: 700; color: #f4d35e; }
+    #message {
+      position: fixed;
+      left: 50%;
+      bottom: 42px;
+      transform: translateX(-50%);
+      z-index: 11;
+      min-width: min(680px, calc(100vw - 36px));
+      padding: 18px 22px;
+      border-radius: 18px;
+      background: rgba(0,0,0,.72);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 18px 40px rgba(0,0,0,.45);
+      text-align: center;
+      font-size: 16px;
+      line-height: 1.55;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+      white-space: pre-wrap;
+    }
+    #message.show { opacity: 1; }
+    #centerDot {
+      position: fixed;
+      z-index: 9;
+      left: 50%;
+      top: 50%;
+      width: 10px;
+      height: 10px;
+      margin-left: -5px;
+      margin-top: -5px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.85);
+      box-sizing: border-box;
+      box-shadow: 0 0 10px rgba(0,0,0,.5);
+    }
+    #startOverlay, #clearOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 30%, rgba(60,60,70,.95), rgba(10,10,12,.98));
+    }
+    .panel {
+      width: min(720px, calc(100vw - 32px));
+      padding: 34px;
+      border-radius: 28px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 28px 80px rgba(0,0,0,.45);
+      text-align: center;
+    }
+    .panel h2 { margin: 0 0 14px; font-size: 30px; letter-spacing: .05em; }
+    .panel p { color: #eee; line-height: 1.75; margin: 10px 0; }
+    button {
+      position: relative;
+      z-index: 40;
+      pointer-events: auto;
+      margin-top: 20px;
+      padding: 14px 22px;
+      border: 0;
+      border-radius: 999px;
+      background: #f4d35e;
+      color: #1d1d1d;
+      font-weight: 800;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,.35);
+    }
+    button:hover { transform: translateY(-1px); }
+    #clearOverlay { display: none; }
+    #startOverlay { pointer-events: auto; }
+    #startOverlay .panel { pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="centerDot"></div>
+
+  <div id="hud">
+    <h1>3D Apartment Escape</h1>
+    <p>WASD：移動 / マウス：視点移動 / E：調べる</p>
+    <p>目的：ロフト付きワンルームから脱出しよう。</p>
+    <p id="inventory">持ち物：なし</p>
+  </div>
+
+  <div id="message"></div>
+
+  <div id="startOverlay">
+    <div class="panel">
+      <h2>ロフト付きアパートからの脱出</h2>
+      <p>気がつくと、ロフト付きのワンルームに閉じ込められていた。</p>
+      <p>左にはロフトのはしご、奥にはカーテン、右にはキッチンとテレビ台。</p>
+      <p>部屋を調べて、玄関の鍵を見つけよう。</p>
+      <button id="startButton">ゲーム開始</button>
+    </div>
+  </div>
+
+  <div id="clearOverlay">
+    <div class="panel">
+      <h2>脱出成功！</h2>
+      <p>鍵を使って玄関を開けた。</p>
+      <p>ロフト付きワンルームから、無事に脱出できた。</p>
+      <button onclick="location.reload()">もう一度遊ぶ</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+    const canvas = document.getElementById('game');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x191a1d);
+    scene.fog = new THREE.Fog(0x191a1d, 12, 36);
+
+    const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(0, 1.65, 4.25);
+
+    const player = {
+      height: 1.65,
+      speed: 3.0,
+      yaw: Math.PI,
+      pitch: -0.05,
+      radius: 0.28,
+      hasRemote: false,
+      hasMemo: false,
+      hasKey: false,
+      gameCleared: false,
+    };
+
+    const keys = new Set();
+    const colliders = [];
+    const interactables = [];
+    const inventory = document.getElementById('inventory');
+    const msg = document.getElementById('message');
+    let messageTimer = null;
+
+    function showMessage(text, duration = 2600) {
+      msg.textContent = text;
+      msg.classList.add('show');
+      clearTimeout(messageTimer);
+      messageTimer = setTimeout(() => msg.classList.remove('show'), duration);
+    }
+
+    function updateInventory() {
+      const items = [];
+      if (player.hasMemo) items.push('メモ「TVの裏」');
+      if (player.hasRemote) items.push('テレビのリモコン');
+      if (player.hasKey) items.push('玄関の鍵');
+      inventory.textContent = '持ち物：' + (items.length ? items.join(' / ') : 'なし');
+    }
+
+    function material(color, opts = {}) {
+      return new THREE.MeshStandardMaterial({ color, roughness: opts.roughness ?? 0.82, metalness: opts.metalness ?? 0 });
+    }
+
+    const mats = {
+      wall: material(0xd9d4c8),
+      ceiling: material(0xeee9dd),
+      floor: material(0xb68b58),
+      darkFloor: material(0x6f4c33),
+      greenRug: material(0x5c8b49),
+      pinkMat: material(0xd79aa3),
+      white: material(0xf0eee7),
+      offWhite: material(0xded8ca),
+      metal: material(0xd9d9d3, { roughness: 0.35, metalness: 0.25 }),
+      darkMetal: material(0x333333, { roughness: 0.4, metalness: 0.3 }),
+      wood: material(0x9d713f),
+      lightWood: material(0xc8a35e),
+      tvBlack: material(0x070707, { roughness: 0.35 }),
+      screen: material(0x101a44, { roughness: 0.25 }),
+      curtain: material(0xe7e3da),
+      blueCurtain: material(0xb8c7d8),
+      fabric: material(0x978575),
+      bear: material(0xf5efe5),
+      sink: material(0x7d7f80, { roughness: 0.25, metalness: 0.55 }),
+      key: material(0xf4d35e, { roughness: 0.25, metalness: 0.75 }),
+    };
+
+    function addBox(name, pos, scale, mat, opts = {}) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      mesh.name = name;
+      mesh.position.set(...pos);
+      mesh.scale.set(...scale);
+      mesh.castShadow = opts.castShadow ?? true;
+      mesh.receiveShadow = opts.receiveShadow ?? true;
+      scene.add(mesh);
+      if (opts.collider) {
+        mesh.updateMatrixWorld();
+        colliders.push(new THREE.Box3().setFromObject(mesh));
+      }
+      return mesh;
+    }
+
+    function addCylinder(name, pos, radiusTop, radiusBottom, height, mat, opts = {}) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, height, opts.segments ?? 32), mat);
+      mesh.name = name;
+      mesh.position.set(...pos);
+      if (opts.rotation) mesh.rotation.set(...opts.rotation);
+      mesh.castShadow = opts.castShadow ?? true;
+      mesh.receiveShadow = opts.receiveShadow ?? true;
+      scene.add(mesh);
+      if (opts.collider) {
+        mesh.updateMatrixWorld();
+        colliders.push(new THREE.Box3().setFromObject(mesh));
+      }
+      return mesh;
+    }
+
+    function addInteractable(mesh, label, range, onInteract) {
+      mesh.userData.label = label;
+      interactables.push({ mesh, label, range, onInteract });
+      return mesh;
+    }
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.48));
+    const ceilingLight = new THREE.PointLight(0xfff2d0, 2.3, 18);
+    ceilingLight.position.set(0.6, 2.85, 0.25);
+    ceilingLight.castShadow = true;
+    scene.add(ceilingLight);
+
+    const windowLight = new THREE.DirectionalLight(0xbad4ff, 0.55);
+    windowLight.position.set(0, 4, -6);
+    scene.add(windowLight);
+
+    // Room: long narrow one-room, entrance at z=5.8, window at z=-5.8
+    const W = 6.6;
+    const D = 10.0;
+    const H = 3.05;
+
+    addBox('floor', [0, -0.05, 0], [W, 0.1, D], mats.floor, { castShadow: false });
+    addBox('ceiling', [0, H, 0], [W, 0.1, D], mats.ceiling, { castShadow: false });
+    addBox('back wall with window', [0, H / 2, -D / 2], [W, H, 0.12], mats.wall, { collider: true, castShadow: false });
+    addBox('front wall left', [-2.25, H / 2, D / 2], [2.1, H, 0.12], mats.wall, { collider: true, castShadow: false });
+    addBox('front wall right', [2.25, H / 2, D / 2], [2.1, H, 0.12], mats.wall, { collider: true, castShadow: false });
+    addBox('left wall', [-W / 2, H / 2, 0], [0.12, H, D], mats.wall, { collider: true, castShadow: false });
+    addBox('right wall', [W / 2, H / 2, 0], [0.12, H, D], mats.wall, { collider: true, castShadow: false });
+
+    // Entrance door
+    const door = addBox('entrance door', [0, 1.12, D / 2 - 0.08], [1.5, 2.25, 0.12], material(0x5a3a25), { collider: true });
+    addCylinder('door knob', [0.52, 1.12, D / 2 - 0.2], 0.07, 0.07, 0.08, mats.metal, { rotation: [Math.PI / 2, 0, 0] });
+    addInteractable(door, '玄関ドア', 2.0, () => {
+      if (player.hasKey) {
+        player.gameCleared = true;
+        document.exitPointerLock?.();
+        document.getElementById('clearOverlay').style.display = 'grid';
+      } else {
+        showMessage('玄関ドアは鍵がかかっている。\nこの部屋のどこかに鍵があるはず。');
+      }
+    });
+
+    // Back window and curtains
+    addBox('window glass', [0, 1.55, -D / 2 + 0.08], [4.2, 1.45, 0.04], material(0x4b647d, { roughness: 0.2 }), { castShadow: false });
+    addBox('curtain rail', [0, 2.35, -D / 2 + 0.18], [4.8, 0.05, 0.08], mats.metal, { castShadow: true });
+    addBox('left plain curtain', [-1.55, 1.55, -D / 2 + 0.22], [1.35, 1.55, 0.05], mats.curtain, { castShadow: true });
+    addBox('right floral curtain base', [1.25, 1.55, -D / 2 + 0.24], [2.45, 1.55, 0.05], mats.blueCurtain, { castShadow: true });
+    for (let i = 0; i < 10; i++) {
+      addCylinder('curtain pattern', [0.25 + i * 0.22, 1.5 + Math.sin(i) * 0.25, -D / 2 + 0.28], 0.035, 0.035, 0.01, material(i % 2 ? 0x5f8b71 : 0x5f6fa8), { rotation: [Math.PI / 2, 0, 0], castShadow: false });
+    }
+
+    // Rug and center table
+    addBox('pink floor mat', [0.0, 0.015, 0.1], [3.45, 0.03, 3.9], mats.pinkMat, { castShadow: false });
+    addBox('green rug', [-0.55, 0.04, -1.15], [2.55, 0.04, 3.0], mats.greenRug, { castShadow: false });
+    addBox('low table', [0.95, 0.38, -1.15], [1.35, 0.18, 0.95], mats.lightWood, { collider: true });
+    addBox('table leg 1', [0.38, 0.18, -1.55], [0.09, 0.36, 0.09], mats.metal, { collider: true });
+    addBox('table leg 2', [1.52, 0.18, -1.55], [0.09, 0.36, 0.09], mats.metal, { collider: true });
+    addBox('table leg 3', [0.38, 0.18, -0.75], [0.09, 0.36, 0.09], mats.metal, { collider: true });
+    addBox('table leg 4', [1.52, 0.18, -0.75], [0.09, 0.36, 0.09], mats.metal, { collider: true });
+    const remote = addBox('tv remote', [1.2, 0.52, -1.05], [0.14, 0.04, 0.45], mats.darkMetal, { castShadow: true });
+    addInteractable(remote, 'テレビのリモコン', 1.4, () => {
+      if (!player.hasRemote) {
+        player.hasRemote = true;
+        remote.visible = false;
+        updateInventory();
+        showMessage('テーブルの上からテレビのリモコンを手に入れた。');
+      } else {
+        showMessage('リモコンが置いてあった場所だ。');
+      }
+    });
+
+    // Bean bag / futon style cushion in the middle-left
+    addBox('bean bag cushion', [-0.95, 0.35, -2.35], [1.25, 0.42, 1.05], mats.fabric, { collider: true });
+    const pillow = addBox('small pillow', [-1.25, 0.68, -2.58], [0.55, 0.18, 0.38], mats.offWhite, { collider: true });
+    addInteractable(pillow, 'クッション', 1.4, () => {
+      if (!player.hasMemo) {
+        player.hasMemo = true;
+        updateInventory();
+        showMessage('クッションの下からメモを見つけた。\n「TVの裏を見ろ」と書いてある。');
+      } else {
+        showMessage('クッションの下にはもう何もない。');
+      }
+    });
+
+    // Left side: loft ladder and loft opening
+    addBox('loft shadow opening', [-2.15, 2.96, -3.6], [1.95, 0.08, 2.1], material(0x202020), { castShadow: false });
+    addBox('loft platform front', [-2.15, 2.45, -2.65], [2.1, 0.25, 0.18], mats.wall, { collider: true });
+    addBox('loft platform side', [-3.1, 2.45, -3.6], [0.18, 0.25, 2.0], mats.wall, { collider: true });
+
+    const ladderGroup = new THREE.Group();
+    const railMat = mats.white;
+    function ladderPart(mesh) { ladderGroup.add(mesh); mesh.castShadow = true; mesh.receiveShadow = true; }
+    for (const x of [-0.38, 0.38]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 3.6, 0.07), railMat);
+      rail.position.set(x, 0, 0);
+      ladderPart(rail);
+    }
+    for (let i = 0; i < 8; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.08), railMat);
+      step.position.set(0, -1.45 + i * 0.43, 0);
+      ladderPart(step);
+    }
+    ladderGroup.position.set(-2.45, 1.45, -2.1);
+    ladderGroup.rotation.x = -0.38;
+    scene.add(ladderGroup);
+    ladderGroup.updateMatrixWorld();
+    colliders.push(new THREE.Box3().setFromObject(ladderGroup));
+    addInteractable(ladderGroup, 'ロフトのはしご', 2.0, () => {
+      showMessage('ロフトへ続くはしごだ。\n今は上には登れないが、いずれ謎解きに使えそう。');
+    });
+
+    // Left foreground: clothes rack simplified and teddy bear
+    addBox('clothes rack pole front', [-2.4, 1.15, 0.35], [0.08, 0.08, 2.2], mats.metal, { collider: true });
+    addBox('clothes rack left leg', [-3.0, 0.5, 0.35], [0.08, 1.0, 0.08], mats.metal, { collider: true });
+    addBox('clothes rack right leg', [-1.8, 0.5, 0.35], [0.08, 1.0, 0.08], mats.metal, { collider: true });
+    for (let i = 0; i < 5; i++) {
+      addBox('simplified clothes', [-2.95 + i * 0.28, 0.78, 0.45], [0.22, 0.85, 0.05], material([0x3d3d3d,0x5b6f8a,0x8a6b5b,0x202020,0x657a5b][i]), { castShadow: true });
+    }
+    addCylinder('teddy body', [-2.85, 0.42, -0.55], 0.34, 0.42, 0.65, mats.bear, { collider: true });
+    addCylinder('teddy head', [-2.85, 0.87, -0.55], 0.28, 0.28, 0.34, mats.bear, { collider: true });
+
+    // Right side: TV stand, TV, air conditioner, kitchen
+    addBox('tv stand', [2.45, 0.35, -1.65], [1.45, 0.55, 0.6], mats.offWhite, { collider: true });
+    const tv = addBox('television', [2.42, 0.93, -1.72], [1.05, 0.62, 0.08], mats.tvBlack, { collider: true });
+    addBox('tv screen', [2.42, 0.94, -1.77], [0.9, 0.48, 0.04], mats.screen, { castShadow: false });
+    const secretKey = new THREE.Group();
+    const keyRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 12, 24), mats.key);
+    const keyStem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.025, 0.32), mats.key);
+    const keyTooth = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.03, 0.055), mats.key);
+    keyStem.position.z = 0.18;
+    keyTooth.position.set(0.045, 0, 0.34);
+    secretKey.add(keyRing, keyStem, keyTooth);
+    secretKey.position.set(2.42, 0.6, -1.35);
+    secretKey.rotation.x = Math.PI / 2;
+    scene.add(secretKey);
+    secretKey.visible = false;
+
+    addInteractable(tv, 'テレビ', 1.8, () => {
+      if (!player.hasRemote) {
+        showMessage('テレビがある。\nリモコンがあれば、何か映るかもしれない。');
+      } else if (!player.hasMemo) {
+        showMessage('リモコンでテレビをつけた。\n画面には「くつろぐ場所の下を見ろ」と表示された。');
+      } else if (!player.hasKey) {
+        player.hasKey = true;
+        secretKey.visible = false;
+        updateInventory();
+        showMessage('メモを頼りにテレビの裏を探した。\n玄関の鍵を見つけた！');
+      } else {
+        showMessage('テレビの裏にはもう何もない。');
+      }
+    });
+
+    addBox('air conditioner', [2.45, 2.25, -3.15], [1.05, 0.32, 0.28], mats.offWhite, { collider: true });
+    addBox('kitchen counter', [2.55, 0.55, 1.9], [1.35, 1.1, 1.15], material(0x3a332e), { collider: true });
+    addBox('sink top', [2.55, 1.13, 1.9], [1.25, 0.08, 1.05], mats.sink, { collider: true });
+    addCylinder('frying pan', [2.65, 1.23, 1.55], 0.28, 0.28, 0.06, mats.darkMetal, { collider: true });
+    addBox('pan handle', [2.25, 1.23, 1.55], [0.5, 0.05, 0.08], mats.darkMetal, { collider: true });
+    addBox('fridge', [2.55, 0.95, 0.45], [0.85, 1.65, 0.7], mats.offWhite, { collider: true });
+    addBox('microwave', [2.55, 1.85, 0.45], [0.95, 0.48, 0.62], material(0x66645f), { collider: true });
+    addBox('microwave window', [2.55, 1.86, 0.12], [0.55, 0.28, 0.03], mats.tvBlack, { castShadow: false });
+
+    // Small shelf near back-left
+    addBox('small shelf', [-1.65, 0.55, -3.65], [0.8, 1.1, 0.45], mats.lightWood, { collider: true });
+    addBox('shelf objects 1', [-1.85, 1.16, -3.65], [0.22, 0.22, 0.22], material(0xf0f0e8), { castShadow: true });
+    addBox('shelf objects 2', [-1.45, 1.18, -3.65], [0.22, 0.22, 0.22], material(0x8b6c43), { castShadow: true });
+
+    // Circular ceiling light model
+    addCylinder('ceiling light body', [0.35, 2.88, -0.55], 0.55, 0.55, 0.12, material(0xf8f5e8), { rotation: [Math.PI / 2, 0, 0], castShadow: true });
+
+    // Input
+    addEventListener('keydown', (e) => {
+      keys.add(e.code);
+      if (e.code === 'KeyE') interact();
+    });
+    addEventListener('keyup', (e) => keys.delete(e.code));
+
+    function startGame() {
+      document.getElementById('startOverlay').style.display = 'none';
+      showMessage('部屋を調べて、玄関の鍵を探そう。', 2200);
+      setTimeout(() => {
+        canvas.requestPointerLock?.();
+      }, 50);
+    }
+
+    document.getElementById('startButton').addEventListener('click', startGame);
+
+    canvas.addEventListener('click', () => {
+      if (!document.pointerLockElement && !player.gameCleared) canvas.requestPointerLock();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (document.pointerLockElement !== canvas) return;
+      player.yaw -= e.movementX * 0.0022;
+      player.pitch -= e.movementY * 0.0022;
+      player.pitch = Math.max(-1.25, Math.min(1.25, player.pitch));
+    });
+
+    const raycaster = new THREE.Raycaster();
+    const lookDir = new THREE.Vector3();
+
+    function getLookTarget() {
+      camera.getWorldDirection(lookDir);
+      raycaster.set(camera.position, lookDir);
+      const objects = interactables.map(i => i.mesh);
+      const hits = raycaster.intersectObjects(objects, true);
+      if (!hits.length) return null;
+      const hit = hits[0];
+      const target = interactables.find(i => i.mesh === hit.object || i.mesh === hit.object.parent || i.mesh.children.includes(hit.object));
+      if (!target) return null;
+      const dist = camera.position.distanceTo(target.mesh.position);
+      if (dist > target.range) return null;
+      return target;
+    }
+
+    function interact() {
+      if (player.gameCleared) return;
+      const target = getLookTarget();
+      if (!target) {
+        showMessage('ここには特に調べられるものはなさそう。', 1200);
+        return;
+      }
+      target.onInteract();
+    }
+
+    function playerBox(pos) {
+      return new THREE.Box3(
+        new THREE.Vector3(pos.x - player.radius, 0, pos.z - player.radius),
+        new THREE.Vector3(pos.x + player.radius, player.height, pos.z + player.radius)
+      );
+    }
+
+    function canMoveTo(pos) {
+      const box = playerBox(pos);
+      return !colliders.some(c => c.intersectsBox(box));
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = player.yaw;
+      camera.rotation.x = player.pitch;
+
+      const input = new THREE.Vector3();
+      if (keys.has('KeyW')) input.z -= 1;
+      if (keys.has('KeyS')) input.z += 1;
+      if (keys.has('KeyA')) input.x -= 1;
+      if (keys.has('KeyD')) input.x += 1;
+      if (input.lengthSq() > 0) input.normalize();
+
+      const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), player.yaw);
+      input.applyQuaternion(yawQuat).multiplyScalar(player.speed * dt);
+
+      const nextX = camera.position.clone();
+      nextX.x += input.x;
+      if (canMoveTo(nextX)) camera.position.x = nextX.x;
+
+      const nextZ = camera.position.clone();
+      nextZ.z += input.z;
+      if (canMoveTo(nextZ)) camera.position.z = nextZ.z;
+
+      camera.position.y = player.height;
+
+      if (secretKey.visible) secretKey.rotation.z += dt * 1.6;
+      if (player.hasMemo && player.hasRemote && !player.hasKey) secretKey.visible = true;
+
+      renderer.render(scene, camera);
+    }
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    updateInventory();
+    animate();
+  </script>
+</body>
+</html>
