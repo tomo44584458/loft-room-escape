@@ -13,8 +13,11 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: white;
       user-select: none;
+      -webkit-user-select: none;
+      overscroll-behavior: none;
+      touch-action: none;
     }
-    #game { width: 100vw; height: 100vh; display: block; }
+    #game { width: 100vw; height: 100vh; display: block; touch-action: none; }
     #hud {
       position: fixed;
       top: 16px;
@@ -104,6 +107,90 @@
     #clearOverlay { display: none; }
     #startOverlay { pointer-events: auto; }
     #startOverlay .panel { pointer-events: auto; }
+    #mobileControls {
+      position: fixed;
+      inset: auto 0 max(18px, env(safe-area-inset-bottom)) 0;
+      z-index: 20;
+      display: none;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 max(18px, env(safe-area-inset-left)) 0 max(18px, env(safe-area-inset-right));
+      pointer-events: none;
+    }
+    #joystick {
+      position: relative;
+      width: 132px;
+      height: 132px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.36);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 14px 34px rgba(0,0,0,.35);
+      pointer-events: auto;
+      touch-action: none;
+    }
+    #joystick::before {
+      content: '';
+      position: absolute;
+      inset: 20px;
+      border-radius: inherit;
+      border: 1px dashed rgba(255,255,255,.28);
+    }
+    #stick {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 58px;
+      height: 58px;
+      margin-left: -29px;
+      margin-top: -29px;
+      border-radius: 999px;
+      background: rgba(244, 211, 94, 0.92);
+      box-shadow: 0 8px 22px rgba(0,0,0,.45);
+      transform: translate(0, 0);
+    }
+    #interactButton {
+      width: 92px;
+      height: 92px;
+      margin: 0 0 10px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+      pointer-events: auto;
+      touch-action: manipulation;
+    }
+    .mobile-only { display: none; }
+    body.touch-enabled #mobileControls { display: flex; }
+    body.touch-enabled .desktop-only { display: none; }
+    body.touch-enabled .mobile-only { display: inline; }
+    @media (max-width: 680px), (pointer: coarse) {
+      #hud {
+        top: max(10px, env(safe-area-inset-top));
+        left: 10px;
+        right: 10px;
+        max-width: none;
+        padding: 10px 12px;
+        border-radius: 14px;
+      }
+      #hud h1 { font-size: 16px; margin-bottom: 5px; }
+      #hud p { font-size: 12px; line-height: 1.35; }
+      #message {
+        bottom: 168px;
+        min-width: auto;
+        width: calc(100vw - 34px);
+        padding: 13px 15px;
+        font-size: 14px;
+        border-radius: 16px;
+      }
+      .panel {
+        width: min(560px, calc(100vw - 28px));
+        padding: 24px 18px;
+        border-radius: 22px;
+      }
+      .panel h2 { font-size: 24px; }
+      .panel p { font-size: 14px; line-height: 1.65; }
+      button { min-height: 48px; }
+    }
   </style>
 </head>
 <body>
@@ -112,12 +199,17 @@
 
   <div id="hud">
     <h1>3D Apartment Escape</h1>
-    <p>WASD：移動 / マウス：視点移動 / E：調べる</p>
+    <p><span class="desktop-only">WASD：移動 / マウス：視点移動 / E：調べる</span><span class="mobile-only">左スティック：移動 / 画面スワイプ：視点移動 / 調べるボタン：調べる</span></p>
     <p>目的：ロフト付きワンルームから脱出しよう。</p>
     <p id="inventory">持ち物：なし</p>
   </div>
 
   <div id="message"></div>
+
+  <div id="mobileControls" aria-label="スマートフォン用操作">
+    <div id="joystick" aria-label="移動スティック"><div id="stick"></div></div>
+    <button id="interactButton" type="button">調べる</button>
+  </div>
 
   <div id="startOverlay">
     <div class="panel">
@@ -125,6 +217,7 @@
       <p>気がつくと、ロフト付きのワンルームに閉じ込められていた。</p>
       <p>左にはロフトのはしご、奥にはカーテン、右にはキッチンとテレビ台。</p>
       <p>部屋を調べて、玄関の鍵を見つけよう。</p>
+      <p class="mobile-only">スマホでは左下のスティックで移動、画面スワイプで視点移動、右下のボタンで調べられます。</p>
       <button id="startButton">ゲーム開始</button>
     </div>
   </div>
@@ -142,6 +235,9 @@
     import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
     const canvas = document.getElementById('game');
+    const isTouchDevice = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) document.body.classList.add('touch-enabled');
+
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
@@ -167,6 +263,7 @@
     };
 
     const keys = new Set();
+    const mobileInput = new THREE.Vector3();
     const colliders = [];
     const interactables = [];
     const inventory = document.getElementById('inventory');
@@ -540,25 +637,110 @@
     });
     addEventListener('keyup', (e) => keys.delete(e.code));
 
+    let gameStarted = false;
+
     function startGame() {
+      gameStarted = true;
       document.getElementById('startOverlay').style.display = 'none';
       showMessage('部屋を調べて、玄関の鍵を探そう。', 2200);
-      setTimeout(() => {
-        canvas.requestPointerLock?.();
-      }, 50);
+      if (!isTouchDevice) {
+        setTimeout(() => {
+          canvas.requestPointerLock?.();
+        }, 50);
+      }
     }
 
     document.getElementById('startButton').addEventListener('click', startGame);
 
     canvas.addEventListener('click', () => {
-      if (!document.pointerLockElement && !player.gameCleared) canvas.requestPointerLock();
+      if (!isTouchDevice && !document.pointerLockElement && !player.gameCleared) canvas.requestPointerLock();
     });
+
+    function rotateView(deltaX, deltaY, sensitivity = 0.0022) {
+      player.yaw -= deltaX * sensitivity;
+      player.pitch -= deltaY * sensitivity;
+      player.pitch = Math.max(-1.25, Math.min(1.25, player.pitch));
+    }
 
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
-      player.yaw -= e.movementX * 0.0022;
-      player.pitch -= e.movementY * 0.0022;
-      player.pitch = Math.max(-1.25, Math.min(1.25, player.pitch));
+      rotateView(e.movementX, e.movementY);
+    });
+
+    const joystick = document.getElementById('joystick');
+    const stick = document.getElementById('stick');
+    const interactButton = document.getElementById('interactButton');
+    const touchLook = { pointerId: null, lastX: 0, lastY: 0 };
+    const joystickState = { pointerId: null, centerX: 0, centerY: 0, max: 46 };
+
+    function resetJoystick() {
+      joystickState.pointerId = null;
+      mobileInput.set(0, 0, 0);
+      stick.style.transform = 'translate(0, 0)';
+    }
+
+    function updateJoystick(clientX, clientY) {
+      let dx = clientX - joystickState.centerX;
+      let dy = clientY - joystickState.centerY;
+      const len = Math.hypot(dx, dy);
+      if (len > joystickState.max) {
+        dx = dx / len * joystickState.max;
+        dy = dy / len * joystickState.max;
+      }
+      stick.style.transform = `translate(${dx}px, ${dy}px)`;
+      mobileInput.x = dx / joystickState.max;
+      mobileInput.z = dy / joystickState.max;
+    }
+
+    joystick.addEventListener('pointerdown', (e) => {
+      if (!isTouchDevice) return;
+      e.preventDefault();
+      joystick.setPointerCapture(e.pointerId);
+      const rect = joystick.getBoundingClientRect();
+      joystickState.pointerId = e.pointerId;
+      joystickState.centerX = rect.left + rect.width / 2;
+      joystickState.centerY = rect.top + rect.height / 2;
+      updateJoystick(e.clientX, e.clientY);
+    });
+
+    joystick.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== joystickState.pointerId) return;
+      e.preventDefault();
+      updateJoystick(e.clientX, e.clientY);
+    });
+
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((eventName) => {
+      joystick.addEventListener(eventName, (e) => {
+        if (e.pointerId === joystickState.pointerId) resetJoystick();
+      });
+    });
+
+    interactButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      interact();
+    });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!isTouchDevice || !gameStarted || player.gameCleared || e.pointerType === 'mouse') return;
+      e.preventDefault();
+      touchLook.pointerId = e.pointerId;
+      touchLook.lastX = e.clientX;
+      touchLook.lastY = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== touchLook.pointerId) return;
+      e.preventDefault();
+      rotateView(e.clientX - touchLook.lastX, e.clientY - touchLook.lastY, 0.0042);
+      touchLook.lastX = e.clientX;
+      touchLook.lastY = e.clientY;
+    });
+
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((eventName) => {
+      canvas.addEventListener(eventName, (e) => {
+        if (e.pointerId === touchLook.pointerId) touchLook.pointerId = null;
+      });
     });
 
     const raycaster = new THREE.Raycaster();
@@ -610,12 +792,12 @@
       camera.rotation.y = player.yaw;
       camera.rotation.x = player.pitch;
 
-      const input = new THREE.Vector3();
+      const input = mobileInput.clone();
       if (keys.has('KeyW')) input.z -= 1;
       if (keys.has('KeyS')) input.z += 1;
       if (keys.has('KeyA')) input.x -= 1;
       if (keys.has('KeyD')) input.x += 1;
-      if (input.lengthSq() > 0) input.normalize();
+      if (input.lengthSq() > 1) input.normalize();
 
       const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), player.yaw);
       input.applyQuaternion(yawQuat).multiplyScalar(player.speed * dt);
