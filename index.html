@@ -214,7 +214,11 @@
       flowerPink: material(0xd9a4aa),
       flowerDusty: material(0xb9979b),
       fabric: material(0x978575),
-      bear: material(0xf5efe5),
+      plushWhite: material(0xf7f1e3, { roughness: 0.95 }),
+      plushCream: material(0xfffbf0, { roughness: 0.98 }),
+      snoopyEar: material(0x4a3321, { roughness: 0.9 }),
+      snoopyBlack: material(0x17110d, { roughness: 0.72 }),
+      stitch: material(0x211a16, { roughness: 0.8 }),
       sink: material(0x7d7f80, { roughness: 0.25, metalness: 0.55 }),
       key: material(0xf4d35e, { roughness: 0.25, metalness: 0.75 }),
     };
@@ -405,7 +409,7 @@
       showMessage('ロフトへ続くはしごだ。\n今は上には登れないが、いずれ謎解きに使えそう。');
     });
 
-    // Left foreground: clothes rack simplified and teddy bear
+    // Left foreground: clothes rack simplified and Snoopy plush
     const clothesRackZ = 1.25;
     addBox('clothes rack pole front', [-2.4, 1.15, clothesRackZ], [0.08, 0.08, 2.2], mats.metal, { collider: true });
     addBox('clothes rack left leg', [-3.0, 0.5, clothesRackZ], [0.08, 1.0, 0.08], mats.metal, { collider: true });
@@ -413,8 +417,73 @@
     for (let i = 0; i < 5; i++) {
       addBox('simplified clothes', [-2.95 + i * 0.28, 0.78, clothesRackZ + 0.1], [0.22, 0.85, 0.05], material([0x3d3d3d,0x5b6f8a,0x8a6b5b,0x202020,0x657a5b][i]), { castShadow: true });
     }
-    addCylinder('teddy body', [-2.85, 0.42, -0.55], 0.34, 0.42, 0.65, mats.bear, { collider: true });
-    addCylinder('teddy head', [-2.85, 0.87, -0.55], 0.28, 0.28, 0.34, mats.bear, { collider: true });
+    function createSnoopyPlush() {
+      const plush = new THREE.Group();
+      plush.name = 'snoopy plush doll';
+
+      function addPlushMesh(name, geometry, mat, pos, scale = [1, 1, 1], rotation = [0, 0, 0]) {
+        const mesh = new THREE.Mesh(geometry, mat);
+        mesh.name = name;
+        mesh.position.set(...pos);
+        mesh.scale.set(...scale);
+        mesh.rotation.set(...rotation);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        plush.add(mesh);
+        return mesh;
+      }
+
+      const sphere = new THREE.SphereGeometry(1, 32, 20);
+      const cylinder = new THREE.CylinderGeometry(1, 1, 1, 24);
+      const toe = new THREE.BoxGeometry(1, 1, 1);
+
+      // Seated, soft proportions to keep roughly the old teddy/placeholder size.
+      addPlushMesh('snoopy round body', sphere, mats.plushWhite, [0, 0.42, 0], [0.34, 0.45, 0.28]);
+      addPlushMesh('snoopy leaning head', sphere, mats.plushCream, [0.03, 0.89, -0.04], [0.34, 0.33, 0.39], [-0.16, 0, 0.07]);
+      addPlushMesh('snoopy muzzle', sphere, mats.plushCream, [0.04, 0.82, -0.34], [0.24, 0.17, 0.24], [-0.12, 0, 0]);
+      addPlushMesh('snoopy black nose', sphere, mats.snoopyBlack, [0.04, 0.83, -0.56], [0.095, 0.085, 0.075]);
+
+      addPlushMesh('snoopy left floppy ear', sphere, mats.snoopyEar, [-0.28, 0.86, -0.03], [0.105, 0.34, 0.16], [0.05, 0, 0.16]);
+      addPlushMesh('snoopy right floppy ear', sphere, mats.snoopyEar, [0.34, 0.86, -0.02], [0.105, 0.34, 0.16], [0.05, 0, -0.16]);
+
+      addPlushMesh('snoopy left eye', sphere, mats.snoopyBlack, [-0.09, 0.96, -0.33], [0.025, 0.04, 0.018]);
+      addPlushMesh('snoopy right eye', sphere, mats.snoopyBlack, [0.17, 0.96, -0.32], [0.025, 0.04, 0.018]);
+      addPlushMesh('snoopy left eyebrow stitch', cylinder, mats.stitch, [-0.16, 1.07, -0.3], [0.012, 0.12, 0.012], [1.18, 0.05, -0.8]);
+      addPlushMesh('snoopy right eyebrow stitch', cylinder, mats.stitch, [0.22, 1.06, -0.29], [0.012, 0.12, 0.012], [1.18, -0.05, 0.8]);
+
+      addPlushMesh('snoopy left arm', sphere, mats.plushWhite, [-0.31, 0.43, -0.12], [0.12, 0.28, 0.11], [0.1, 0, -0.35]);
+      addPlushMesh('snoopy right arm', sphere, mats.plushWhite, [0.34, 0.43, -0.12], [0.12, 0.28, 0.11], [0.1, 0, 0.35]);
+      addPlushMesh('snoopy left paw', sphere, mats.plushCream, [-0.27, 0.12, -0.3], [0.19, 0.13, 0.2], [0.25, 0.18, -0.15]);
+      addPlushMesh('snoopy right paw', sphere, mats.plushCream, [0.29, 0.12, -0.3], [0.19, 0.13, 0.2], [0.25, -0.18, 0.15]);
+
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 3; i++) {
+          addPlushMesh(
+            `snoopy ${side < 0 ? 'left' : 'right'} paw stitch ${i + 1}`,
+            toe,
+            mats.stitch,
+            [side * (0.2 + i * 0.055), 0.22, -0.47],
+            [0.012, 0.13, 0.01],
+            [0.55, 0, side * 0.08]
+          );
+        }
+      }
+
+      // Small tail peeking from behind.
+      addPlushMesh('snoopy tiny tail', sphere, mats.plushWhite, [0, 0.42, 0.26], [0.075, 0.075, 0.09]);
+
+      plush.position.set(-2.85, 0.02, -0.55);
+      plush.rotation.y = 0.06;
+      scene.add(plush);
+      plush.updateMatrixWorld();
+      colliders.push(new THREE.Box3().setFromObject(plush));
+      return plush;
+    }
+
+    const snoopyPlush = createSnoopyPlush();
+    addInteractable(snoopyPlush, 'スヌーピーのぬいぐるみ', 1.6, () => {
+      showMessage('ふわふわしたスヌーピーのぬいぐるみだ。\n前の置物と同じくらいのサイズで、ちょこんと座っている。');
+    });
 
     // Right side: TV stand, TV, air conditioner, kitchen
     addBox('tv stand', [2.95, 0.35, -1.65], [0.6, 0.55, 1.45], mats.offWhite, { collider: true });
