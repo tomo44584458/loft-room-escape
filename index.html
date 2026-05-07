@@ -163,6 +163,10 @@
     body.touch-enabled #mobileControls { display: flex; }
     body.touch-enabled .desktop-only { display: none; }
     body.touch-enabled .mobile-only { display: inline; }
+    body.touch-enabled #hud h1,
+    body.touch-enabled #hud p:not(#inventory) {
+      display: none;
+    }
     @media (max-width: 680px), (pointer: coarse) {
       #hud {
         top: max(10px, env(safe-area-inset-top));
