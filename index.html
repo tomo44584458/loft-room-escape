@@ -123,7 +123,7 @@
     <div class="panel">
       <h2>ロフト付きアパートからの脱出</h2>
       <p>気がつくと、ロフト付きのワンルームに閉じ込められていた。</p>
-      <p>左にはロフトのはしご、奥にはカーテン、右にはキッチンとテレビ台。</p>
+      <p>左手前には物干しざお、その奥にロフトのはしごとスヌーピーが見える。</p>
       <p>部屋を調べて、玄関の鍵を見つけよう。</p>
       <button id="startButton">ゲーム開始</button>
     </div>
@@ -383,9 +383,12 @@
     });
 
     // Left side: loft ladder and loft opening
-    addBox('loft shadow opening', [-2.15, 2.96, -3.6], [1.95, 0.08, 2.1], material(0x202020), { castShadow: false });
-    addBox('loft platform front', [-2.15, 2.45, -2.65], [2.1, 0.25, 0.18], mats.wall, { collider: true });
-    addBox('loft platform side', [-3.1, 2.45, -3.6], [0.18, 0.25, 2.0], mats.wall, { collider: true });
+    // Move the loft so its ladder sits between the clothes rack and Snoopy when viewed from the entrance.
+    const loftX = -2.35;
+    const loftZ = -0.05;
+    addBox('loft shadow opening', [loftX, 2.96, loftZ], [1.95, 0.08, 2.1], material(0x202020), { castShadow: false });
+    addBox('loft platform front', [loftX, 2.45, loftZ + 0.95], [2.1, 0.25, 0.18], mats.wall, { collider: true });
+    addBox('loft platform side', [loftX - 0.95, 2.45, loftZ], [0.18, 0.25, 2.0], mats.wall, { collider: true });
 
     const ladderGroup = new THREE.Group();
     const railMat = mats.white;
@@ -400,7 +403,7 @@
       step.position.set(0, -1.45 + i * 0.43, 0);
       ladderPart(step);
     }
-    ladderGroup.position.set(-2.45, 1.45, -2.1);
+    ladderGroup.position.set(-2.35, 1.45, 0.35);
     ladderGroup.rotation.x = -0.38;
     scene.add(ladderGroup);
     ladderGroup.updateMatrixWorld();
